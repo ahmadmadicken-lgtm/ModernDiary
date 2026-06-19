@@ -23,6 +23,23 @@
     --terracotta: #C2693D;
     --terracotta-deep: #A8552F;
     --moss: #6E7E5C;
+    --card-bg: #FFFFFF;
+  }
+
+  html.dark{
+    --paper: #1C1815;
+    --paper-deep: #262019;
+    --ink: #EFE7DC;
+    --ink-soft: #A89A88;
+    --rule: #38312A;
+    --terracotta: #E08A5C;
+    --terracotta-deep: #F0A678;
+    --moss: #9CAE89;
+    --card-bg: #221C17;
+  }
+
+  html, body, .field, .btn-primary, header, #logoutBtn, .tag, .entry-card, section{
+    transition: background-color .3s ease, border-color .3s ease, color .3s ease;
   }
 
   *{ -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -49,7 +66,7 @@
   .field:focus{
     border-color: var(--terracotta);
     box-shadow: 0 0 0 4px rgba(194,105,61,0.12);
-    background-color:#fff;
+    background-color: var(--card-bg);
     outline:none;
   }
 
@@ -116,14 +133,17 @@
         </svg>
         <span class="font-display text-[18px]">ModernDiary</span>
       </div>
-      <button id="logoutBtn" class="text-[12px] font-mono px-3 py-1.5 rounded-full" style="color:var(--ink-soft); border:1px solid var(--rule)">keluar</button>
+      <div class="flex items-center gap-2">
+        <button id="darkModeBtn" class="text-[13px] px-2.5 py-1.5 rounded-full" style="color:var(--ink-soft); border:1px solid var(--rule)">🌙</button>
+        <button id="logoutBtn" class="text-[12px] font-mono px-3 py-1.5 rounded-full" style="color:var(--ink-soft); border:1px solid var(--rule)">keluar</button>
+      </div>
     </div>
   </header>
 
   <main class="max-w-2xl mx-auto px-5 py-7 pb-24">
 
     <!-- Write entry card -->
-    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-6" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.05s">
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-6" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.05s">
       <label for="entryInput" class="block font-display text-[19px] mb-1">Apa yang terjadi hari ini?</label>
       <p class="text-[12.5px] mb-4" style="color:var(--ink-soft)">Tulis saja dengan bahasamu sendiri — soal pengeluaran, kegiatan, atau apapun.</p>
       <p class="text-[11px] mb-4 italic" style="color:var(--ink-soft)">💡 Beberapa kejadian dalam satu waktu? Tulis tiap kejadian di baris baru (Enter) — otomatis terpisah jadi catatan masing-masing.</p>
@@ -155,7 +175,7 @@
     </section>
 
     <!-- Ask / Query box -->
-    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.12s">
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.12s">
       <label for="askInput" class="block font-display text-[19px] mb-1">🔍 Tinggal tanya</label>
       <p class="text-[12.5px] mb-4" style="color:var(--ink-soft)">Contoh: "kapan terakhir kali beli galon air?" atau "berapa kali olahraga minggu ini?"</p>
 
@@ -177,7 +197,7 @@
     </section>
 
     <!-- Reminders / Rencana & Janji -->
-    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.15s">
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.15s">
       <div class="flex items-center justify-between mb-1">
         <label class="font-display text-[19px]">📌 Rencana & Janji</label>
         <button id="notifPermBtn" class="hidden text-[11px] font-mono px-2.5 py-1 rounded-full" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">aktifkan notifikasi</button>
@@ -208,7 +228,7 @@
     </section>
 
     <!-- Insight / Ringkasan -->
-    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.16s">
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.16s">
       <label class="block font-display text-[19px] mb-1">📊 Ringkasan Bulan Ini</label>
       <p id="insightMonthLabel" class="text-[12.5px] mb-4" style="color:var(--ink-soft)"></p>
 
@@ -238,7 +258,7 @@
       <div class="mb-4 space-y-2.5">
         <input id="searchInput" type="text"
           class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
-          style="background:#fff; border:1.5px solid var(--rule); color:var(--ink)"
+          style="background:var(--card-bg); border:1.5px solid var(--rule); color:var(--ink)"
           placeholder="🔎 Cari kata kunci di catatan...">
         <div id="categoryFilters" class="flex flex-wrap gap-1.5"></div>
       </div>
@@ -267,6 +287,23 @@
   const SUPABASE_URL = 'https://ubprwubthpurwsxiogti.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVicHJ3dWJ0aHB1cndzeGlvZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODQ3MjMsImV4cCI6MjA5NzQ2MDcyM30.YhtdVDA8DNQMperTg6049m8mj0DnrTXKaetf4GMtprg';
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ====== MODE GELAP ======
+  const darkModeBtn = document.getElementById('darkModeBtn');
+
+  function applyDarkMode(isDark){
+    document.documentElement.classList.toggle('dark', isDark);
+    darkModeBtn.textContent = isDark ? '☀️' : '🌙';
+  }
+
+  const savedTheme = localStorage.getItem('moderndiary-theme');
+  applyDarkMode(savedTheme === 'dark');
+
+  darkModeBtn.addEventListener('click', () => {
+    const isDarkNow = !document.documentElement.classList.contains('dark');
+    applyDarkMode(isDarkNow);
+    localStorage.setItem('moderndiary-theme', isDarkNow ? 'dark' : 'light');
+  });
 
   const entryInput = document.getElementById('entryInput');
   const charCount = document.getElementById('charCount');
@@ -351,7 +388,7 @@
   function renderEntryCard(entry, index){
     const card = document.createElement('div');
     card.className = 'entry-card rounded-[16px] p-4 sm:p-5';
-    card.style.cssText = 'background:#fff; border:1px solid var(--rule);';
+    card.style.cssText = 'background:var(--card-bg); border:1px solid var(--rule);';
     card.style.animationDelay = `${Math.min(index * 0.04, 0.3)}s`;
 
     let tagsHtml = '';
@@ -826,7 +863,7 @@
         result.referenced_entries.forEach((entry) => {
           const ref = document.createElement('div');
           ref.className = 'rounded-[10px] px-3 py-2.5';
-          ref.style.cssText = 'background:#fff; border:1px solid var(--rule);';
+          ref.style.cssText = 'background:var(--card-bg); border:1px solid var(--rule);';
           ref.innerHTML = `
             <p class="text-[13px] leading-relaxed" style="color:var(--ink)">${escapeHtml(entry.raw_content)}</p>
             <span class="text-[10.5px] font-mono" style="color:var(--ink-soft)">${formatRelativeTime(entry.created_at)}</span>
