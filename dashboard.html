@@ -126,11 +126,12 @@
     <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-6" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.05s">
       <label for="entryInput" class="block font-display text-[19px] mb-1">Apa yang terjadi hari ini?</label>
       <p class="text-[12.5px] mb-4" style="color:var(--ink-soft)">Tulis saja dengan bahasamu sendiri — soal pengeluaran, kegiatan, atau apapun.</p>
+      <p class="text-[11px] mb-4 italic" style="color:var(--ink-soft)">💡 Beberapa kejadian dalam satu waktu? Tulis tiap kejadian di baris baru (Enter) — otomatis terpisah jadi catatan masing-masing.</p>
 
       <textarea id="entryInput" rows="4" maxlength="800"
         class="field w-full rounded-[14px] px-4 py-3.5 text-[14.5px] leading-relaxed resize-none"
         style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
-        placeholder="Contoh: tadi sore beli galon air di Toko Pak Budi, 22 ribu rupiah..."></textarea>
+        placeholder="Contoh: Lari pagi dengan PB 5 km 30 menit&#10;Beli makan setelah lari, habis 32 ribu"></textarea>
 
       <div class="flex items-center justify-between mt-3">
         <button type="button" id="toggleDateBtn" class="text-[11.5px] font-mono flex items-center gap-1" style="color:var(--ink-soft)">
@@ -504,8 +505,11 @@
     }
     insightEmpty.classList.add('hidden');
 
-    // Total biaya bulan ini
-    const totalCost = thisMonthEntries.reduce((sum, e) => sum + (Number(e.extracted_data?.cost) || 0), 0);
+    // Total biaya bulan ini — HANYA dari catatan berkategori "expense" (bukan semua angka di field cost,
+    // karena cost juga dipakai untuk kasus non-pengeluaran seperti "menemukan uang")
+    const totalCost = thisMonthEntries
+      .filter((e) => e.extracted_data?.category === 'expense')
+      .reduce((sum, e) => sum + (Number(e.extracted_data?.cost) || 0), 0);
     if (totalCost > 0) {
       insightTotalCost.classList.remove('hidden');
       insightTotalCostValue.textContent = `Rp ${totalCost.toLocaleString('id-ID')}`;
@@ -605,10 +609,17 @@
     applyFiltersAndRender();
   });
 
-  // ====== SAVE NEW ENTRY + TRIGGER AI PROCESSING ======
+  // ====== SAVE NEW ENTRY(IES) + TRIGGER AI PROCESSING ======
   saveBtn.addEventListener('click', async () => {
-    const content = entryInput.value.trim();
-    if (!content) {
+    const rawText = entryInput.value.trim();
+    if (!rawText) {
+      entryInput.focus();
+      return;
+    }
+
+    // Pecah per baris — tiap baris non-kosong dianggap 1 kejadian terpisah
+    const lines = rawText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length === 0) {
       entryInput.focus();
       return;
     }
@@ -625,23 +636,31 @@
       createdAtOverride = customDate.toISOString();
     }
 
-    const insertPayload = {
-      user_id: currentUserId,
-      raw_content: content,
-      is_processed: false
-    };
-    if (createdAtOverride) insertPayload.created_at = createdAtOverride;
+    // Simpan setiap baris sebagai catatan terpisah
+    const insertedRows = [];
+    for (const line of lines) {
+      const insertPayload = {
+        user_id: currentUserId,
+        raw_content: line,
+        is_processed: false
+      };
+      if (createdAtOverride) insertPayload.created_at = createdAtOverride;
 
-    // 1. Simpan dulu catatan mentah ke database
-    const { data: inserted, error } = await supabaseClient
-      .from('family_diaries')
-      .insert(insertPayload)
-      .select()
-      .single();
+      const { data: inserted, error } = await supabaseClient
+        .from('family_diaries')
+        .insert(insertPayload)
+        .select()
+        .single();
 
-    if (error) {
-      console.error(error);
-      alert('Gagal menyimpan: ' + error.message);
+      if (error) {
+        console.error(error);
+        alert(`Gagal menyimpan baris "${line.slice(0, 30)}...": ` + error.message);
+        continue;
+      }
+      insertedRows.push(inserted);
+    }
+
+    if (insertedRows.length === 0) {
       saveBtn.disabled = false;
       saveLabel.textContent = 'Simpan Catatan';
       return;
@@ -658,14 +677,14 @@
     loadEntries();
 
     // Cooldown singkat supaya tidak bisa spam-klik (mencegah pemborosan kuota DeepSeek)
-    saveLabel.textContent = 'Tersimpan ✓';
+    saveLabel.textContent = insertedRows.length > 1 ? `${insertedRows.length} Tersimpan ✓` : 'Tersimpan ✓';
     setTimeout(() => {
       saveBtn.disabled = false;
       saveLabel.textContent = 'Simpan Catatan';
     }, 1200);
 
-    // 2. Panggil Edge Function process-diary di latar belakang (tidak menahan UI)
-    processDiaryInBackground(inserted.id, inserted.raw_content);
+    // Proses tiap catatan di latar belakang (paralel)
+    insertedRows.forEach((row) => processDiaryInBackground(row.id, row.raw_content));
   });
 
   async function processDiaryInBackground(diaryId, rawContent){
