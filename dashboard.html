@@ -213,6 +213,15 @@
         <span id="entryCount" class="text-[11px] font-mono" style="color:var(--ink-soft)"></span>
       </div>
 
+      <!-- Search & Filter -->
+      <div class="mb-4 space-y-2.5">
+        <input id="searchInput" type="text"
+          class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
+          style="background:#fff; border:1.5px solid var(--rule); color:var(--ink)"
+          placeholder="🔎 Cari kata kunci di catatan...">
+        <div id="categoryFilters" class="flex flex-wrap gap-1.5"></div>
+      </div>
+
       <div id="loadingState" class="text-center py-10 text-[13px] pulse" style="color:var(--ink-soft)">
         Memuat catatan...
       </div>
@@ -221,6 +230,12 @@
         <div class="text-[26px] mb-2">📓</div>
         <p class="font-display text-[17px] mb-1.5">Belum ada catatan</p>
         <p class="text-[13px]" style="color:var(--ink-soft)">Tulisanmu yang pertama akan muncul di sini.</p>
+      </div>
+
+      <div id="noResultsState" class="hidden text-center py-14 rounded-[16px]" style="border:1.5px dashed var(--rule)">
+        <div class="text-[26px] mb-2">🔍</div>
+        <p class="font-display text-[17px] mb-1.5">Tidak ditemukan</p>
+        <p class="text-[13px]" style="color:var(--ink-soft)">Coba kata kunci atau filter lain.</p>
       </div>
 
       <div id="entriesList" class="space-y-3"></div>
@@ -239,6 +254,9 @@
   const entriesList = document.getElementById('entriesList');
   const loadingState = document.getElementById('loadingState');
   const emptyState = document.getElementById('emptyState');
+  const noResultsState = document.getElementById('noResultsState');
+  const searchInput = document.getElementById('searchInput');
+  const categoryFilters = document.getElementById('categoryFilters');
   const entryCount = document.getElementById('entryCount');
   const logoutBtn = document.getElementById('logoutBtn');
 
@@ -405,9 +423,14 @@
   }
 
   // ====== LOAD ENTRIES ======
+  let allEntries = [];
+  let activeCategory = null;
+  let searchQuery = '';
+
   async function loadEntries(){
     loadingState.classList.remove('hidden');
     emptyState.classList.add('hidden');
+    noResultsState.classList.add('hidden');
     entriesList.innerHTML = '';
 
     const { data, error } = await supabaseClient
@@ -423,15 +446,78 @@
       return;
     }
 
-    if (!data || data.length === 0) {
+    allEntries = data || [];
+
+    if (allEntries.length === 0) {
       emptyState.classList.remove('hidden');
       entryCount.textContent = '';
+      categoryFilters.innerHTML = '';
       return;
     }
 
-    entryCount.textContent = `${data.length} catatan`;
-    data.forEach((entry, i) => entriesList.appendChild(renderEntryCard(entry, i)));
+    renderCategoryFilters();
+    applyFiltersAndRender();
   }
+
+  function renderCategoryFilters(){
+    const categories = [...new Set(
+      allEntries.map((e) => e.extracted_data?.category).filter(Boolean)
+    )];
+
+    if (categories.length === 0) {
+      categoryFilters.innerHTML = '';
+      return;
+    }
+
+    const chips = categories.map((cat) => {
+      const isActive = activeCategory === cat;
+      return `<button class="cat-chip tag" data-cat="${escapeHtml(cat)}" style="cursor:pointer; ${isActive ? 'background:var(--terracotta); color:#fff; border-color:var(--terracotta);' : ''}">${escapeHtml(cat)}</button>`;
+    }).join('');
+
+    categoryFilters.innerHTML = chips;
+
+    categoryFilters.querySelectorAll('.cat-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const cat = chip.dataset.cat;
+        activeCategory = activeCategory === cat ? null : cat;
+        renderCategoryFilters();
+        applyFiltersAndRender();
+      });
+    });
+  }
+
+  function applyFiltersAndRender(){
+    let filtered = allEntries;
+
+    if (activeCategory) {
+      filtered = filtered.filter((e) => e.extracted_data?.category === activeCategory);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter((e) => e.raw_content.toLowerCase().includes(q));
+    }
+
+    entriesList.innerHTML = '';
+
+    if (filtered.length === 0) {
+      noResultsState.classList.remove('hidden');
+      entryCount.textContent = '0 dari ' + allEntries.length + ' catatan';
+      return;
+    }
+
+    noResultsState.classList.add('hidden');
+    entryCount.textContent = (activeCategory || searchQuery.trim())
+      ? `${filtered.length} dari ${allEntries.length} catatan`
+      : `${filtered.length} catatan`;
+
+    filtered.forEach((entry, i) => entriesList.appendChild(renderEntryCard(entry, i)));
+  }
+
+  searchInput.addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    applyFiltersAndRender();
+  });
 
   // ====== SAVE NEW ENTRY + TRIGGER AI PROCESSING ======
   saveBtn.addEventListener('click', async () => {
