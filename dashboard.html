@@ -285,14 +285,18 @@
     charCount.style.color = len > 720 ? '#A8552F' : 'var(--ink-soft)';
   });
 
-  // ====== FORMAT WAKTU RELATIF (basis 2026) ======
+  // ====== FORMAT WAKTU RELATIF (basis kalender, bukan selisih jam mentah) ======
   function formatRelativeTime(isoString){
     const now = new Date();
     const created = new Date(isoString);
     const diffMs = now - created;
     const diffMin = Math.floor(diffMs / 60000);
     const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
+
+    // Selisih hari dihitung dari tanggal kalender (tengah malam ke tengah malam), bukan blok 24 jam
+    const createdMidnight = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDay = Math.round((nowMidnight - createdMidnight) / (1000 * 60 * 60 * 24));
 
     if (diffMin < 1) return 'baru saja';
     if (diffMin < 60) return `${diffMin} menit lalu`;
