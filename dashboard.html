@@ -174,6 +174,13 @@
       </div>
     </section>
 
+    <!-- Kilas Balik / On This Day -->
+    <section id="onThisDaySection" class="hidden rise-section rounded-[20px] p-5 sm:p-6 mb-6" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.08s">
+      <label class="block font-display text-[19px] mb-1">🕰️ Kilas Balik</label>
+      <p class="text-[12.5px] mb-3" style="color:var(--ink-soft)">Catatan dari tanggal yang sama di waktu lalu.</p>
+      <div id="onThisDayList" class="space-y-2.5"></div>
+    </section>
+
     <!-- Ask / Query box -->
     <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.12s">
       <label for="askInput" class="block font-display text-[19px] mb-1">🔍 Tinggal tanya</label>
@@ -524,6 +531,41 @@
     renderCategoryFilters();
     applyFiltersAndRender();
     renderInsights();
+    renderOnThisDay();
+  }
+
+  // ====== KILAS BALIK / ON THIS DAY ======
+  const onThisDaySection = document.getElementById('onThisDaySection');
+  const onThisDayList = document.getElementById('onThisDayList');
+
+  function renderOnThisDay(){
+    const now = new Date();
+    const todayMonth = now.getUTCMonth();
+    const todayDate = now.getUTCDate();
+    const thisYear = now.getUTCFullYear();
+
+    const matches = allEntries.filter((e) => {
+      const d = new Date(e.created_at);
+      return d.getUTCMonth() === todayMonth && d.getUTCDate() === todayDate && d.getUTCFullYear() !== thisYear;
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (matches.length === 0) {
+      onThisDaySection.classList.add('hidden');
+      return;
+    }
+
+    onThisDaySection.classList.remove('hidden');
+    onThisDayList.innerHTML = matches.map((e) => {
+      const entryYear = new Date(e.created_at).getUTCFullYear();
+      const yearsAgo = thisYear - entryYear;
+      const label = yearsAgo === 1 ? 'Setahun lalu' : `${yearsAgo} tahun lalu`;
+      return `
+        <div class="rounded-[12px] px-4 py-3" style="background:var(--paper-deep); border:1px solid var(--rule)">
+          <p class="text-[13.5px] leading-relaxed" style="color:var(--ink)">${escapeHtml(e.raw_content)}</p>
+          <span class="text-[11px] font-mono" style="color:var(--moss)">${label}</span>
+        </div>
+      `;
+    }).join('');
   }
 
   // ====== RINGKASAN & INSIGHT BULAN INI ======
