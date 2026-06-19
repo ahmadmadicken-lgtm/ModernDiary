@@ -175,6 +175,37 @@
       </div>
     </section>
 
+    <!-- Reminders / Rencana & Janji -->
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.15s">
+      <div class="flex items-center justify-between mb-1">
+        <label class="font-display text-[19px]">📌 Rencana & Janji</label>
+        <button id="notifPermBtn" class="hidden text-[11px] font-mono px-2.5 py-1 rounded-full" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">aktifkan notifikasi</button>
+      </div>
+      <p class="text-[12.5px] mb-4" style="color:var(--ink-soft)">Catat janji atau rencana ke depan, akan diingatkan saat waktunya tiba (selama app ini terbuka).</p>
+
+      <div class="space-y-2.5">
+        <input id="reminderTitle" type="text"
+          class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
+          style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
+          placeholder="Contoh: Janji ketemu Pak Andi">
+        <div class="flex gap-2.5">
+          <input id="reminderDateTime" type="datetime-local"
+            class="field flex-1 rounded-[12px] px-3.5 py-2.5 text-[13.5px]"
+            style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+          <button id="addReminderBtn"
+            class="btn-primary text-white font-medium text-[14px] rounded-[12px] px-5 shrink-0">
+            <span id="addReminderLabel">Tambah</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="remindersEmpty" class="hidden text-center py-6 text-[13px]" style="color:var(--ink-soft)">
+        Belum ada rencana yang dicatat.
+      </div>
+
+      <div id="remindersList" class="space-y-2 mt-4"></div>
+    </section>
+
     <!-- Entries list -->
     <section class="rise-section" style="animation-delay:.18s">
       <div class="flex items-center justify-between mb-4">
@@ -222,6 +253,7 @@
     }
     currentUserId = session.user.id;
     loadEntries();
+    loadReminders();
   }
   requireAuth();
 
@@ -561,6 +593,155 @@
   askInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleAsk();
   });
+
+  // ====== RENCANA & JANJI (REMINDERS) ======
+  const reminderTitle = document.getElementById('reminderTitle');
+  const reminderDateTime = document.getElementById('reminderDateTime');
+  const addReminderBtn = document.getElementById('addReminderBtn');
+  const addReminderLabel = document.getElementById('addReminderLabel');
+  const remindersList = document.getElementById('remindersList');
+  const remindersEmpty = document.getElementById('remindersEmpty');
+  const notifPermBtn = document.getElementById('notifPermBtn');
+
+  const notifiedIds = new Set(); // cegah notifikasi berulang dalam sesi yang sama
+
+  // ====== IZIN NOTIFIKASI ======
+  function updateNotifBtnVisibility(){
+    if (!('Notification' in window)) return;
+    notifPermBtn.classList.toggle('hidden', Notification.permission !== 'default');
+  }
+  updateNotifBtnVisibility();
+
+  notifPermBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      alert('Browser ini tidak mendukung notifikasi.');
+      return;
+    }
+    await Notification.requestPermission();
+    updateNotifBtnVisibility();
+  });
+
+  function fireNotification(title, body){
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      new Notification(title, {
+        body,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  // ====== FORMAT LABEL WAKTU RENCANA ======
+  function formatReminderLabel(isoString){
+    const target = new Date(isoString);
+    const now = new Date();
+    const isToday = target.toDateString() === now.toDateString();
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+    const isTomorrow = target.toDateString() === tomorrow.toDateString();
+
+    const timeStr = target.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Hari ini, ${timeStr}`;
+    if (isTomorrow) return `Besok, ${timeStr}`;
+
+    const dateStr = target.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
+    return `${dateStr}, ${timeStr}`;
+  }
+
+  function renderReminderItem(reminder){
+    const isPast = new Date(reminder.reminder_at) < new Date();
+    const item = document.createElement('div');
+    item.className = 'rounded-[12px] px-4 py-3 flex items-start justify-between gap-3';
+    item.style.cssText = `background:${isPast && !reminder.is_done ? '#F7E9E2' : 'var(--paper-deep)'}; border:1px solid var(--rule);`;
+
+    item.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <p class="text-[14px] leading-snug ${reminder.is_done ? 'line-through' : ''}" style="color:${reminder.is_done ? 'var(--ink-soft)' : 'var(--ink)'}">${escapeHtml(reminder.title)}</p>
+        <span class="text-[11px] font-mono" style="color:${isPast && !reminder.is_done ? '#A8552F' : 'var(--ink-soft)'}">${formatReminderLabel(reminder.reminder_at)}</span>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <button class="done-btn text-[11px] font-mono" style="color:var(--moss)">${reminder.is_done ? 'batal' : 'selesai'}</button>
+        <button class="del-reminder-btn text-[11px] font-mono" style="color:#A8552F">hapus</button>
+      </div>
+    `;
+
+    item.querySelector('.done-btn').addEventListener('click', async () => {
+      await supabaseClient.from('family_reminders').update({ is_done: !reminder.is_done }).eq('id', reminder.id);
+      loadReminders();
+    });
+
+    item.querySelector('.del-reminder-btn').addEventListener('click', async () => {
+      if (!confirm('Hapus rencana ini?')) return;
+      await supabaseClient.from('family_reminders').delete().eq('id', reminder.id);
+      loadReminders();
+    });
+
+    return item;
+  }
+
+  async function loadReminders(){
+    const { data, error } = await supabaseClient
+      .from('family_reminders')
+      .select('*')
+      .order('reminder_at', { ascending: true });
+
+    if (error) { console.error(error); return; }
+
+    remindersList.innerHTML = '';
+    if (!data || data.length === 0) {
+      remindersEmpty.classList.remove('hidden');
+      return;
+    }
+    remindersEmpty.classList.add('hidden');
+    data.forEach((r) => remindersList.appendChild(renderReminderItem(r)));
+
+    checkDueReminders(data);
+  }
+
+  function checkDueReminders(reminders){
+    const now = new Date();
+    reminders.forEach((r) => {
+      if (r.is_done || notifiedIds.has(r.id)) return;
+      const dueTime = new Date(r.reminder_at);
+      if (dueTime <= now) {
+        fireNotification('📌 ' + r.title, formatReminderLabel(r.reminder_at) + (r.notes ? ' — ' + r.notes : ''));
+        notifiedIds.add(r.id);
+      }
+    });
+  }
+
+  addReminderBtn.addEventListener('click', async () => {
+    const title = reminderTitle.value.trim();
+    const dt = reminderDateTime.value;
+    if (!title || !dt) {
+      if (!title) reminderTitle.focus(); else reminderDateTime.focus();
+      return;
+    }
+
+    addReminderBtn.disabled = true;
+    addReminderLabel.innerHTML = '<span class="spinner"></span>';
+
+    const { error } = await supabaseClient.from('family_reminders').insert({
+      user_id: currentUserId,
+      title,
+      reminder_at: new Date(dt).toISOString(),
+    });
+
+    addReminderBtn.disabled = false;
+    addReminderLabel.textContent = 'Tambah';
+
+    if (error) {
+      alert('Gagal menyimpan rencana: ' + error.message);
+      return;
+    }
+
+    reminderTitle.value = '';
+    reminderDateTime.value = '';
+    loadReminders();
+  });
+
+  // Cek ulang tiap 60 detik selama app terbuka, supaya notifikasi tetap muncul tepat waktu
+  setInterval(() => { loadReminders(); }, 60000);
 
   // ====== SERVICE WORKER ======
   if ('serviceWorker' in navigator) {
