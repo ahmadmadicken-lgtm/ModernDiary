@@ -213,6 +213,14 @@
           <input id="reminderDateTime" type="datetime-local"
             class="field flex-1 rounded-[12px] px-3.5 py-2.5 text-[13.5px]"
             style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+          <select id="reminderRecurrence"
+            class="field rounded-[12px] px-2.5 py-2.5 text-[13px] shrink-0"
+            style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+            <option value="">Sekali saja</option>
+            <option value="daily">Tiap hari</option>
+            <option value="weekly">Tiap minggu</option>
+            <option value="monthly">Tiap bulan</option>
+          </select>
           <button id="addReminderBtn"
             class="btn-primary text-white font-medium text-[14px] rounded-[12px] px-5 shrink-0">
             <span id="addReminderLabel">Tambah</span>
@@ -894,6 +902,7 @@
   // ====== RENCANA & JANJI (REMINDERS) ======
   const reminderTitle = document.getElementById('reminderTitle');
   const reminderDateTime = document.getElementById('reminderDateTime');
+  const reminderRecurrence = document.getElementById('reminderRecurrence');
   const addReminderBtn = document.getElementById('addReminderBtn');
   const addReminderLabel = document.getElementById('addReminderLabel');
   const remindersList = document.getElementById('remindersList');
@@ -945,16 +954,20 @@
     return `${dateStr}, ${timeStr}`;
   }
 
+  const recurrenceLabel = { daily: '🔁 harian', weekly: '🔁 mingguan', monthly: '🔁 bulanan' };
+
   function renderReminderItem(reminder){
     const isPast = new Date(reminder.reminder_at) < new Date();
     const item = document.createElement('div');
     item.className = 'rounded-[12px] px-4 py-3 flex items-start justify-between gap-3';
     item.style.cssText = `background:${isPast && !reminder.is_done ? '#F7E9E2' : 'var(--paper-deep)'}; border:1px solid var(--rule);`;
 
+    const recBadge = reminder.recurrence ? `<span class="text-[10px] font-mono ml-1.5" style="color:var(--moss)">${recurrenceLabel[reminder.recurrence] || ''}</span>` : '';
+
     item.innerHTML = `
       <div class="flex-1 min-w-0">
         <p class="text-[14px] leading-snug ${reminder.is_done ? 'line-through' : ''}" style="color:${reminder.is_done ? 'var(--ink-soft)' : 'var(--ink)'}">${escapeHtml(reminder.title)}</p>
-        <span class="text-[11px] font-mono" style="color:${isPast && !reminder.is_done ? '#A8552F' : 'var(--ink-soft)'}">${formatReminderLabel(reminder.reminder_at)}</span>
+        <span class="text-[11px] font-mono" style="color:${isPast && !reminder.is_done ? '#A8552F' : 'var(--ink-soft)'}">${formatReminderLabel(reminder.reminder_at)}</span>${recBadge}
       </div>
       <div class="flex items-center gap-2.5 shrink-0">
         <button class="done-btn text-[11px] font-mono" style="color:var(--moss)">${reminder.is_done ? 'batal' : 'selesai'}</button>
@@ -963,7 +976,24 @@
     `;
 
     item.querySelector('.done-btn').addEventListener('click', async () => {
-      await supabaseClient.from('family_reminders').update({ is_done: !reminder.is_done }).eq('id', reminder.id);
+      const markingDone = !reminder.is_done;
+      await supabaseClient.from('family_reminders').update({ is_done: markingDone }).eq('id', reminder.id);
+
+      // Kalau ini rencana berulang dan baru ditandai selesai, buat jadwal berikutnya otomatis
+      if (markingDone && reminder.recurrence) {
+        const nextDate = new Date(reminder.reminder_at);
+        if (reminder.recurrence === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+        if (reminder.recurrence === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+        if (reminder.recurrence === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+
+        await supabaseClient.from('family_reminders').insert({
+          user_id: currentUserId,
+          title: reminder.title,
+          reminder_at: nextDate.toISOString(),
+          recurrence: reminder.recurrence,
+        });
+      }
+
       loadReminders();
     });
 
@@ -1022,6 +1052,7 @@
       user_id: currentUserId,
       title,
       reminder_at: new Date(dt).toISOString(),
+      recurrence: reminderRecurrence.value || null,
     });
 
     addReminderBtn.disabled = false;
@@ -1034,6 +1065,7 @@
 
     reminderTitle.value = '';
     reminderDateTime.value = '';
+    reminderRecurrence.value = '';
     loadReminders();
   });
 
