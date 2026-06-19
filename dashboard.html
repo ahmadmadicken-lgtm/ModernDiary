@@ -228,7 +228,10 @@
     <section class="rise-section" style="animation-delay:.18s">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-display text-[19px]">Catatan Sebelumnya</h2>
-        <span id="entryCount" class="text-[11px] font-mono" style="color:var(--ink-soft)"></span>
+        <div class="flex items-center gap-2.5">
+          <span id="entryCount" class="text-[11px] font-mono" style="color:var(--ink-soft)"></span>
+          <button id="exportCsvBtn" class="text-[11px] font-mono px-2.5 py-1 rounded-full" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">⬇ unduh CSV</button>
+        </div>
       </div>
 
       <!-- Search & Filter -->
@@ -607,6 +610,67 @@
   searchInput.addEventListener('input', (e) => {
     searchQuery = e.target.value;
     applyFiltersAndRender();
+  });
+
+  // ====== EXPORT CSV ======
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+
+  function csvEscape(value){
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
+
+  exportCsvBtn.addEventListener('click', () => {
+    if (!allEntries || allEntries.length === 0) {
+      alert('Belum ada catatan untuk diunduh.');
+      return;
+    }
+
+    // Hormati filter/pencarian yang sedang aktif — yang diunduh adalah yang sedang terlihat
+    let dataToExport = allEntries;
+    if (activeCategory) {
+      dataToExport = dataToExport.filter((e) => e.extracted_data?.category === activeCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      dataToExport = dataToExport.filter((e) => e.raw_content.toLowerCase().includes(q));
+    }
+
+    if (dataToExport.length === 0) {
+      alert('Tidak ada catatan yang cocok dengan filter saat ini untuk diunduh.');
+      return;
+    }
+
+    const headers = ['Tanggal', 'Catatan', 'Kategori', 'Sub Kategori', 'Lokasi', 'Biaya (Rp)'];
+    const rows = dataToExport.map((e) => {
+      const d = e.extracted_data || {};
+      const dateStr = new Date(e.created_at).toISOString().split('T')[0];
+      return [
+        dateStr,
+        e.raw_content,
+        d.category || '',
+        d.sub_category || '',
+        d.location || '',
+        d.cost || ''
+      ].map(csvEscape).join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // \uFEFF: BOM supaya Excel baca UTF-8 dengan benar
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const today = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `moderndiary-catatan-${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   });
 
   // ====== SAVE NEW ENTRY(IES) + TRIGGER AI PROCESSING ======
