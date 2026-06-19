@@ -132,6 +132,18 @@
         style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
         placeholder="Contoh: tadi sore beli galon air di Toko Pak Budi, 22 ribu rupiah..."></textarea>
 
+      <div class="flex items-center justify-between mt-3">
+        <button type="button" id="toggleDateBtn" class="text-[11.5px] font-mono flex items-center gap-1" style="color:var(--ink-soft)">
+          📅 <span id="toggleDateLabel">catat untuk tanggal lain</span>
+        </button>
+      </div>
+      <div id="dateField" class="hidden mt-2.5">
+        <label class="block text-[11px] font-medium mb-1" style="color:var(--ink-soft)">Tanggal kejadian</label>
+        <input id="entryDate" type="date"
+          class="field rounded-[10px] px-3 py-2 text-[13.5px]"
+          style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+      </div>
+
       <div class="flex items-center justify-between mt-3.5">
         <span id="charCount" class="text-[11px] font-mono" style="color:var(--ink-soft)">0 / 800 karakter</span>
         <button id="saveBtn"
@@ -218,6 +230,22 @@
     window.location.href = 'index.html';
   });
 
+  // ====== TOGGLE TANGGAL KUSTOM ======
+  const toggleDateBtn = document.getElementById('toggleDateBtn');
+  const toggleDateLabel = document.getElementById('toggleDateLabel');
+  const dateField = document.getElementById('dateField');
+  const entryDateInput = document.getElementById('entryDate');
+  let customDateActive = false;
+
+  toggleDateBtn.addEventListener('click', () => {
+    customDateActive = !customDateActive;
+    dateField.classList.toggle('hidden', !customDateActive);
+    toggleDateLabel.textContent = customDateActive ? 'pakai tanggal hari ini' : 'catat untuk tanggal lain';
+    if (customDateActive && !entryDateInput.value) {
+      entryDateInput.value = new Date().toISOString().split('T')[0];
+    }
+  });
+
   // ====== CHAR COUNTER ======
   entryInput.addEventListener('input', () => {
     const len = entryInput.value.length;
@@ -265,13 +293,71 @@
 
     card.innerHTML = `
       <div class="flex items-start justify-between gap-3">
-        <p class="text-[14px] leading-relaxed flex-1" style="color:var(--ink)">${escapeHtml(entry.raw_content)}</p>
+        <p class="entry-text text-[14px] leading-relaxed flex-1" style="color:var(--ink)">${escapeHtml(entry.raw_content)}</p>
       </div>
       <div class="flex items-center justify-between mt-2.5">
         <span class="text-[11px] font-mono" style="color:var(--ink-soft)">${formatRelativeTime(entry.created_at)}</span>
+        <div class="flex items-center gap-3">
+          <button class="edit-btn text-[11px] font-mono" style="color:var(--ink-soft)">ubah</button>
+          <button class="delete-btn text-[11px] font-mono" style="color:#A8552F">hapus</button>
+        </div>
       </div>
       ${tagsHtml}
     `;
+
+    // ====== EDIT ======
+    card.querySelector('.edit-btn').addEventListener('click', () => {
+      const textEl = card.querySelector('.entry-text');
+      const currentText = entry.raw_content;
+      textEl.outerHTML = `
+        <div class="flex-1">
+          <textarea class="edit-textarea field w-full rounded-[10px] px-3 py-2.5 text-[14px] leading-relaxed resize-none" rows="3"
+            style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">${escapeHtml(currentText)}</textarea>
+          <div class="flex items-center gap-2 mt-2">
+            <button class="save-edit-btn text-[12px] font-medium px-3 py-1.5 rounded-[8px]" style="background:var(--terracotta); color:#fff">Simpan</button>
+            <button class="cancel-edit-btn text-[12px] font-mono px-3 py-1.5" style="color:var(--ink-soft)">Batal</button>
+          </div>
+        </div>`;
+
+      card.querySelector('.cancel-edit-btn').addEventListener('click', () => loadEntries());
+
+      card.querySelector('.save-edit-btn').addEventListener('click', async () => {
+        const newText = card.querySelector('.edit-textarea').value.trim();
+        if (!newText) return;
+
+        const { error: editError } = await supabaseClient
+          .from('family_diaries')
+          .update({ raw_content: newText, is_processed: false, extracted_data: null })
+          .eq('id', entry.id);
+
+        if (editError) {
+          alert('Gagal menyimpan perubahan: ' + editError.message);
+          return;
+        }
+
+        loadEntries();
+        processDiaryInBackground(entry.id, newText);
+      });
+    });
+
+    // ====== HAPUS ======
+    card.querySelector('.delete-btn').addEventListener('click', async () => {
+      const confirmed = confirm('Hapus catatan ini? Tindakan ini tidak bisa dibatalkan.');
+      if (!confirmed) return;
+
+      const { error: deleteError } = await supabaseClient
+        .from('family_diaries')
+        .delete()
+        .eq('id', entry.id);
+
+      if (deleteError) {
+        alert('Gagal menghapus: ' + deleteError.message);
+        return;
+      }
+
+      loadEntries();
+    });
+
     return card;
   }
 
@@ -321,14 +407,26 @@
     saveBtn.disabled = true;
     saveLabel.innerHTML = '<span class="spinner"></span>';
 
+    // Kalau mode tanggal kustom aktif, pakai tanggal itu + jam saat ini (bukan default now())
+    let createdAtOverride = null;
+    if (customDateActive && entryDateInput.value) {
+      const now = new Date();
+      const [y, m, d] = entryDateInput.value.split('-').map(Number);
+      const customDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+      createdAtOverride = customDate.toISOString();
+    }
+
+    const insertPayload = {
+      user_id: currentUserId,
+      raw_content: content,
+      is_processed: false
+    };
+    if (createdAtOverride) insertPayload.created_at = createdAtOverride;
+
     // 1. Simpan dulu catatan mentah ke database
     const { data: inserted, error } = await supabaseClient
       .from('family_diaries')
-      .insert({
-        user_id: currentUserId,
-        raw_content: content,
-        is_processed: false
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -344,6 +442,10 @@
     entryInput.value = '';
     charCount.textContent = '0 / 800 karakter';
     charCount.style.color = 'var(--ink-soft)';
+    customDateActive = false;
+    dateField.classList.add('hidden');
+    toggleDateLabel.textContent = 'catat untuk tanggal lain';
+    entryDateInput.value = '';
     loadEntries();
 
     // Cooldown singkat supaya tidak bisa spam-klik (mencegah pemborosan kuota DeepSeek)
