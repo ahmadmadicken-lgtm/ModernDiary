@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>ModernDiary</title>
+
+<!-- PWA Manifest (Android/Universal) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FAF6F0">
+
+<!-- Tailwind CSS (JIT runtime — works directly in browser) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Supabase JS Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --paper: #FAF6F0;
+    --paper-deep: #F2EBE0;
+    --ink: #2B2622;
+    --ink-soft: #6B6258;
+    --rule: #E8DFD3;
+    --terracotta: #C2693D;
+    --terracotta-deep: #A8552F;
+    --moss: #6E7E5C;
+  }
+
+  *{ -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    font-family: 'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .font-display{ font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+  .font-mono{ font-family: 'JetBrains Mono', monospace; }
+
+  .ruled-bg{
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 27px,
+      var(--rule) 28px
+    );
+    background-position: 0 150px;
+  }
+
+  @keyframes riseIn{
+    from{ opacity:0; transform: translateY(14px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .rise-1{ animation: riseIn .6s cubic-bezier(.16,1,.3,1) .05s both; }
+  .rise-2{ animation: riseIn .6s cubic-bezier(.16,1,.3,1) .15s both; }
+  .rise-3{ animation: riseIn .6s cubic-bezier(.16,1,.3,1) .25s both; }
+  .rise-4{ animation: riseIn .6s cubic-bezier(.16,1,.3,1) .35s both; }
+
+  @keyframes markStroke{
+    from{ stroke-dashoffset: 60; }
+    to{ stroke-dashoffset: 0; }
+  }
+  .mark-path{
+    stroke-dasharray: 60;
+    animation: markStroke 1s cubic-bezier(.65,0,.35,1) .3s both;
+  }
+
+  input::placeholder{ color: #B5AB9C; }
+
+  .field{ transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
+  .field:focus{
+    border-color: var(--terracotta);
+    box-shadow: 0 0 0 4px rgba(194,105,61,0.12);
+    background-color: #fff;
+    outline: none;
+  }
+
+  .tab-thumb{ transition: transform .35s cubic-bezier(.65,0,.35,1); }
+
+  .btn-primary{
+    background: var(--terracotta);
+    transition: background-color .2s ease, transform .15s ease, box-shadow .2s ease;
+    box-shadow: 0 1px 2px rgba(43,38,34,0.08), 0 8px 20px -8px rgba(194,105,61,0.55);
+  }
+  .btn-primary:hover{ background: var(--terracotta-deep); transform: translateY(-1px); }
+  .btn-primary:active{ transform: translateY(0); }
+  .btn-primary:disabled{ opacity:.55; transform:none; box-shadow:none; }
+
+  .feature-row{ transition: transform .2s ease; }
+
+  .spinner{
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .shake{ animation: shake .4s ease; }
+  @keyframes shake{
+    20%,60%{ transform: translateX(-4px); }
+    40%,80%{ transform: translateX(4px); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .rise-1,.rise-2,.rise-3,.rise-4,.mark-path{ animation: none !important; }
+  }
+</style>
+</head>
+
+<body class="min-h-screen ruled-bg antialiased">
+
+  <div class="min-h-screen flex flex-col items-center justify-center px-5 py-12">
+    <div class="w-full max-w-[380px]">
+
+      <!-- Brand mark -->
+      <div class="rise-1 mb-8 text-center">
+        <svg class="mx-auto mb-5" width="46" height="46" viewBox="0 0 46 46" fill="none">
+          <rect x="3" y="3" width="40" height="40" rx="11" fill="#C2693D"/>
+          <path class="mark-path" d="M14 28 L18 16 L23 25 L28 14 L32 28" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <h1 class="font-display text-[30px] leading-none tracking-tight">ModernDiary</h1>
+        <p class="text-[13.5px] mt-3 leading-relaxed" style="color:var(--ink-soft)">
+          Tulis apa saja yang terjadi hari ini, dengan kata-katamu sendiri. ModernDiary yang akan merapikannya jadi catatan yang mudah dicari lagi nanti.
+        </p>
+      </div>
+
+      <!-- Quick feature hints — replaces the family-avatar signature -->
+      <div class="rise-2 grid grid-cols-3 gap-2 mb-7">
+        <div class="feature-row rounded-[12px] px-2.5 py-3 text-center" style="background:#fff; border:1px solid var(--rule)">
+          <div class="text-[18px] mb-1">✍️</div>
+          <p class="text-[10.5px] leading-tight" style="color:var(--ink-soft)">Tulis bebas</p>
+        </div>
+        <div class="feature-row rounded-[12px] px-2.5 py-3 text-center" style="background:#fff; border:1px solid var(--rule)">
+          <div class="text-[18px] mb-1">🗂️</div>
+          <p class="text-[10.5px] leading-tight" style="color:var(--ink-soft)">Tersusun otomatis</p>
+        </div>
+        <div class="feature-row rounded-[12px] px-2.5 py-3 text-center" style="background:#fff; border:1px solid var(--rule)">
+          <div class="text-[18px] mb-1">🔍</div>
+          <p class="text-[10.5px] leading-tight" style="color:var(--ink-soft)">Tinggal tanya</p>
+        </div>
+      </div>
+
+      <!-- Auth Card -->
+      <div class="rise-3 rounded-[20px] p-6 sm:p-7" style="background:#fff; border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -24px rgba(43,38,34,0.18);">
+
+        <div class="relative grid grid-cols-2 rounded-full p-1 mb-7 text-[13px]" style="background:var(--paper-deep)">
+          <div id="tabThumb" class="tab-thumb absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full" style="background:#fff; box-shadow: 0 1px 2px rgba(43,38,34,0.08), 0 1px 8px rgba(43,38,34,0.06);"></div>
+          <button id="tabLogin" type="button" class="relative z-10 py-2.5 rounded-full font-medium transition-colors duration-200" style="color:var(--ink)">Masuk</button>
+          <button id="tabRegister" type="button" class="relative z-10 py-2.5 rounded-full font-medium transition-colors duration-200" style="color:var(--ink-soft)">Daftar</button>
+        </div>
+
+        <form id="authForm" class="space-y-4" novalidate>
+          <div>
+            <label class="block text-[12px] font-medium mb-1.5" style="color:var(--ink-soft)" for="email">Email</label>
+            <input id="email" type="email" required autocomplete="email" inputmode="email"
+              class="field w-full rounded-[12px] px-4 py-3 text-[14.5px]"
+              style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
+              placeholder="nama@email.com">
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-[12px] font-medium" style="color:var(--ink-soft)" for="password">Kata Sandi</label>
+              <span id="pwHint" class="text-[11px] font-mono" style="color:var(--ink-soft)">min. 6 karakter</span>
+            </div>
+            <div class="relative">
+              <input id="password" type="password" required autocomplete="current-password" minlength="6"
+                class="field w-full rounded-[12px] px-4 py-3 pr-12 text-[14.5px]"
+                style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
+                placeholder="••••••••">
+              <button type="button" id="togglePw" tabindex="-1"
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-mono" style="color:var(--ink-soft)">lihat</button>
+            </div>
+          </div>
+
+          <div id="msgBox" class="hidden rounded-[10px] px-3.5 py-2.5 text-[12.5px] leading-snug"></div>
+
+          <button type="submit" id="submitBtn"
+            class="btn-primary w-full text-white font-medium text-[14.5px] rounded-[12px] py-3.5 mt-2 flex items-center justify-center gap-2">
+            <span id="submitLabel">Masuk</span>
+          </button>
+        </form>
+      </div>
+
+      <p class="rise-4 text-center text-[12px] mt-7 leading-relaxed" style="color:var(--ink-soft)">
+        Catatanmu bersifat pribadi dan hanya bisa kamu lihat sendiri.
+      </p>
+    </div>
+  </div>
+
+<script>
+  const SUPABASE_URL = 'https://ubprwubthpurwsxiogti.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVicHJ3dWJ0aHB1cndzeGlvZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODQ3MjMsImV4cCI6MjA5NzQ2MDcyM30.YhtdVDA8DNQMperTg6049m8mj0DnrTXKaetf4GMtprg';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let mode = 'login';
+
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const tabThumb = document.getElementById('tabThumb');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitLabel = document.getElementById('submitLabel');
+  const authForm = document.getElementById('authForm');
+  const msgBox = document.getElementById('msgBox');
+  const pwHint = document.getElementById('pwHint');
+  const passwordInput = document.getElementById('password');
+  const togglePw = document.getElementById('togglePw');
+
+  function showMsg(text, type){
+    msgBox.textContent = text;
+    msgBox.classList.remove('hidden');
+    if(type === 'error'){
+      msgBox.style.background = '#F7E9E2';
+      msgBox.style.color = '#A8552F';
+    } else {
+      msgBox.style.background = '#EAEFE3';
+      msgBox.style.color = '#566248';
+    }
+  }
+  function hideMsg(){ msgBox.classList.add('hidden'); }
+
+  function setMode(newMode){
+    mode = newMode;
+    hideMsg();
+    if(mode === 'login'){
+      tabThumb.style.transform = 'translateX(0%)';
+      tabLogin.style.color = 'var(--ink)';
+      tabRegister.style.color = 'var(--ink-soft)';
+      submitLabel.textContent = 'Masuk';
+      pwHint.textContent = 'min. 6 karakter';
+    } else {
+      tabThumb.style.transform = 'translateX(100%)';
+      tabRegister.style.color = 'var(--ink)';
+      tabLogin.style.color = 'var(--ink-soft)';
+      submitLabel.textContent = 'Buat Akun';
+      pwHint.textContent = 'buat min. 6 karakter';
+    }
+  }
+  tabLogin.addEventListener('click', () => setMode('login'));
+  tabRegister.addEventListener('click', () => setMode('register'));
+
+  togglePw.addEventListener('click', () => {
+    const isPw = passwordInput.type === 'password';
+    passwordInput.type = isPw ? 'text' : 'password';
+    togglePw.textContent = isPw ? 'sembunyi' : 'lihat';
+  });
+
+  async function checkSession(){
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.href = 'dashboard.html';
+  }
+  checkSession();
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideMsg();
+    submitBtn.disabled = true;
+    submitLabel.innerHTML = '<span class="spinner"></span>';
+
+    const email = document.getElementById('email').value.trim();
+    const password = passwordInput.value;
+
+    try {
+      if (mode === 'login') {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        window.location.href = 'dashboard.html';
+        return;
+      } else {
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) throw error;
+        showMsg('Akun berhasil dibuat. Cek email untuk verifikasi, lalu masuk.', 'success');
+        setMode('login');
+      }
+    } catch (err) {
+      showMsg(err.message || 'Terjadi kesalahan, coba lagi.', 'error');
+      const card = authForm.closest('div');
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 400);
+    } finally {
+      submitBtn.disabled = false;
+      submitLabel.textContent = mode === 'login' ? 'Masuk' : 'Buat Akun';
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    });
+  }
+</script>
+
+</body>
+</html>
