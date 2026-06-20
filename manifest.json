@@ -1,11 +1,12 @@
 {
   "name": "ModernDiary",
   "short_name": "ModernDiary",
-  "description": "Catatan harian keluarga berbasis AI",
-  "start_url": "/index.html",
+  "description": "Tulis apa saja yang terjadi hari ini, dengan kata-katamu sendiri",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#FAF6F0",
+  "theme_color": "#FAF6F0",
   "orientation": "portrait",
   "icons": [
     {
