@@ -275,6 +275,22 @@
       </div>
 
       <div id="remindersList" class="space-y-2 mt-4"></div>
+
+      <!-- Pengingat Harian (terpisah dari rencana spesifik di atas) -->
+      <div class="mt-5 pt-4" style="border-top:1px dashed var(--rule)">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[13px] font-medium" style="color:var(--ink)">⏰ Pengingat harian menulis</p>
+            <p class="text-[11px]" style="color:var(--ink-soft)">Ajakan rutin tiap hari di jam yang kamu pilih.</p>
+          </div>
+          <button id="dailyReminderToggle" class="shrink-0 w-11 h-6 rounded-full relative transition-colors" style="background:var(--rule)">
+            <span id="dailyReminderKnob" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"></span>
+          </button>
+        </div>
+        <input id="dailyReminderTime" type="time" value="20:00"
+          class="field mt-2.5 rounded-[10px] px-3 py-1.5 text-[13px]"
+          style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+      </div>
     </section>
 
     <!-- Insight / Ringkasan -->
@@ -354,10 +370,16 @@
 
       <!-- Search & Filter -->
       <div class="mb-4 space-y-2.5">
-        <input id="searchInput" type="text"
-          class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
-          style="background:var(--card-bg); border:1.5px solid var(--rule); color:var(--ink)"
-          placeholder="🔎 Cari kata kunci di catatan...">
+        <div class="flex gap-2">
+          <input id="searchInput" type="text"
+            class="field flex-1 min-w-0 rounded-[12px] px-4 py-2.5 text-[14px]"
+            style="background:var(--card-bg); border:1.5px solid var(--rule); color:var(--ink)"
+            placeholder="🔎 Cari kata kunci di catatan...">
+          <button id="semanticSearchBtn" class="text-[11px] font-mono px-3 py-1 rounded-[12px] shrink-0 whitespace-nowrap" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">
+            <span id="semanticSearchLabel">🧠 cari makna</span>
+          </button>
+        </div>
+        <p id="semanticActiveNote" class="hidden text-[11px] italic" style="color:var(--moss)">🧠 Pencarian makna aktif — hasil berdasarkan AI, bukan cuma kata persis.</p>
 
         <button id="toggleDateRangeBtn" class="text-[11px] font-mono flex items-center gap-1" style="color:var(--ink-soft)">
           📅 <span>filter rentang tanggal</span>
@@ -1037,18 +1059,23 @@
   const favFilterBtn = document.getElementById('favFilterBtn');
 
   // ====== FUNGSI FILTER TERPUSAT (dipakai render, CSV, dan PDF) ======
+  let semanticResultIds = null; // null = mode pencarian biasa; Set = mode pencarian makna aktif
+
   function getFilteredEntries(){
     let filtered = allEntries;
+
+    if (semanticResultIds !== null) {
+      filtered = filtered.filter((e) => semanticResultIds.has(e.id));
+    } else if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter((e) => e.raw_content.toLowerCase().includes(q));
+    }
 
     if (favoriteOnly) {
       filtered = filtered.filter((e) => e.is_favorite);
     }
     if (activeCategory) {
       filtered = filtered.filter((e) => e.extracted_data?.category === activeCategory);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter((e) => e.raw_content.toLowerCase().includes(q));
     }
     if (dateFrom) {
       const fromDate = new Date(dateFrom + 'T00:00:00Z');
@@ -1063,7 +1090,7 @@
   }
 
   function isAnyFilterActive(){
-    return !!(activeCategory || searchQuery.trim() || favoriteOnly || dateFrom || dateTo);
+    return !!(activeCategory || searchQuery.trim() || favoriteOnly || dateFrom || dateTo || semanticResultIds !== null);
   }
 
   function applyFiltersAndRender(){
@@ -1093,8 +1120,55 @@
     applyFiltersAndRender();
   });
 
+  // ====== PENCARIAN SEMANTIK (AI) ======
+  const semanticSearchBtn = document.getElementById('semanticSearchBtn');
+  const semanticSearchLabel = document.getElementById('semanticSearchLabel');
+  const semanticActiveNote = document.getElementById('semanticActiveNote');
+
+  semanticSearchBtn.addEventListener('click', async () => {
+    const q = searchInput.value.trim();
+    if (!q) {
+      searchInput.focus();
+      return;
+    }
+
+    semanticSearchBtn.disabled = true;
+    semanticSearchLabel.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/semantic-search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ query: q })
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      const result = await response.json();
+      semanticResultIds = new Set(result.matched_ids || []);
+      searchQuery = ''; // matikan mode keyword biasa, semantik yang aktif
+      semanticActiveNote.classList.remove('hidden');
+      applyFiltersAndRender();
+    } catch (err) {
+      console.error(err);
+      alert('Gagal melakukan pencarian makna. Coba lagi.');
+    } finally {
+      semanticSearchBtn.disabled = false;
+      semanticSearchLabel.textContent = '🧠 cari makna';
+    }
+  });
+
   searchInput.addEventListener('input', (e) => {
     searchQuery = e.target.value;
+    semanticResultIds = null; // ketik ulang -> batalkan mode pencarian makna, balik ke biasa
+    semanticActiveNote.classList.add('hidden');
     applyFiltersAndRender();
   });
 
@@ -1619,6 +1693,63 @@
     } catch (e) { console.error(e); }
   }
 
+  // ====== PENGINGAT HARIAN MENULIS ======
+  const dailyReminderToggle = document.getElementById('dailyReminderToggle');
+  const dailyReminderKnob = document.getElementById('dailyReminderKnob');
+  const dailyReminderTime = document.getElementById('dailyReminderTime');
+  const DAILY_REMINDER_KEY = 'moderndiary-daily-reminder';
+
+  function loadDailyReminderSettings(){
+    try {
+      const saved = JSON.parse(localStorage.getItem(DAILY_REMINDER_KEY) || '{}');
+      return { enabled: saved.enabled || false, time: saved.time || '20:00', lastFired: saved.lastFired || null };
+    } catch { return { enabled: false, time: '20:00', lastFired: null }; }
+  }
+  function saveDailyReminderSettings(settings){
+    localStorage.setItem(DAILY_REMINDER_KEY, JSON.stringify(settings));
+  }
+
+  function applyDailyReminderUI(settings){
+    dailyReminderToggle.style.background = settings.enabled ? 'var(--terracotta)' : 'var(--rule)';
+    dailyReminderKnob.style.transform = settings.enabled ? 'translateX(20px)' : 'translateX(0)';
+    dailyReminderTime.value = settings.time;
+  }
+
+  const initialDailySettings = loadDailyReminderSettings();
+  applyDailyReminderUI(initialDailySettings);
+
+  dailyReminderToggle.addEventListener('click', () => {
+    const settings = loadDailyReminderSettings();
+    settings.enabled = !settings.enabled;
+    saveDailyReminderSettings(settings);
+    applyDailyReminderUI(settings);
+  });
+
+  dailyReminderTime.addEventListener('change', (e) => {
+    const settings = loadDailyReminderSettings();
+    settings.time = e.target.value;
+    saveDailyReminderSettings(settings);
+  });
+
+  function checkDailyReminder(){
+    const settings = loadDailyReminderSettings();
+    if (!settings.enabled) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const [h, m] = settings.time.split(':').map(Number);
+
+    const targetMinutes = h * 60 + m;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Tembak notifikasi kalau sudah lewat jam target hari ini & belum pernah ditembak hari ini
+    if (nowMinutes >= targetMinutes && settings.lastFired !== todayStr) {
+      fireNotification('📝 Gimana harimu?', 'Yuk tulis sesuatu di ModernDiary sebelum lupa.');
+      settings.lastFired = todayStr;
+      saveDailyReminderSettings(settings);
+    }
+  }
+
   // ====== FORMAT LABEL WAKTU RENCANA ======
   function formatReminderLabel(isoString){
     const target = new Date(isoString);
@@ -1751,7 +1882,8 @@
   });
 
   // Cek ulang tiap 60 detik selama app terbuka, supaya notifikasi tetap muncul tepat waktu
-  setInterval(() => { loadReminders(); loadCapsules(); }, 60000);
+  setInterval(() => { loadReminders(); loadCapsules(); checkDailyReminder(); }, 60000);
+  checkDailyReminder(); // cek juga langsung saat app dibuka
 
   // ====== SERVICE WORKER ======
   if ('serviceWorker' in navigator) {
