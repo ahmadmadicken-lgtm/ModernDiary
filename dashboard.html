@@ -419,6 +419,11 @@
       </div>
 
       <div id="entriesList" class="space-y-3"></div>
+
+      <div class="flex items-center justify-center gap-3 mt-4">
+        <button id="showMoreBtn" class="hidden text-[12.5px] font-mono px-4 py-2 rounded-full" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">Lihat 5 lagi ↓</button>
+        <button id="showLessBtn" class="hidden text-[12.5px] font-mono px-4 py-2 rounded-full" style="color:var(--ink-soft)">Tampilkan lebih sedikit</button>
+      </div>
     </section>
   </main>
 
@@ -1047,6 +1052,7 @@
       chip.addEventListener('click', () => {
         const cat = chip.dataset.cat;
         activeCategory = activeCategory === cat ? null : cat;
+        displayLimit = DEFAULT_DISPLAY_COUNT;
         renderCategoryFilters();
         applyFiltersAndRender();
       });
@@ -1089,6 +1095,11 @@
     return filtered;
   }
 
+  const DEFAULT_DISPLAY_COUNT = 5;
+  let displayLimit = DEFAULT_DISPLAY_COUNT;
+  const showMoreBtn = document.getElementById('showMoreBtn');
+  const showLessBtn = document.getElementById('showLessBtn');
+
   function isAnyFilterActive(){
     return !!(activeCategory || searchQuery.trim() || favoriteOnly || dateFrom || dateTo || semanticResultIds !== null);
   }
@@ -1101,6 +1112,8 @@
     if (filtered.length === 0) {
       noResultsState.classList.remove('hidden');
       entryCount.textContent = '0 dari ' + allEntries.length + ' catatan';
+      showMoreBtn.classList.add('hidden');
+      showLessBtn.classList.add('hidden');
       return;
     }
 
@@ -1109,14 +1122,32 @@
       ? `${filtered.length} dari ${allEntries.length} catatan`
       : `${filtered.length} catatan`;
 
-    filtered.forEach((entry, i) => entriesList.appendChild(renderEntryCard(entry, i)));
+    // Cuma render kartu sejumlah displayLimit — bukan semua sekaligus, biar tetap ringan walau datanya ratusan
+    const toRender = filtered.slice(0, displayLimit);
+    toRender.forEach((entry, i) => entriesList.appendChild(renderEntryCard(entry, i)));
+
+    showMoreBtn.classList.toggle('hidden', displayLimit >= filtered.length);
+    showLessBtn.classList.toggle('hidden', displayLimit <= DEFAULT_DISPLAY_COUNT);
   }
+
+  showMoreBtn.addEventListener('click', () => {
+    displayLimit += 5;
+    applyFiltersAndRender();
+  });
+
+  showLessBtn.addEventListener('click', () => {
+    displayLimit = DEFAULT_DISPLAY_COUNT;
+    applyFiltersAndRender();
+    showLessBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
 
   favFilterBtn.addEventListener('click', () => {
     favoriteOnly = !favoriteOnly;
     favFilterBtn.style.background = favoriteOnly ? 'var(--terracotta)' : '';
     favFilterBtn.style.color = favoriteOnly ? '#fff' : '';
     favFilterBtn.style.borderColor = favoriteOnly ? 'var(--terracotta)' : '';
+    displayLimit = DEFAULT_DISPLAY_COUNT;
     applyFiltersAndRender();
   });
 
@@ -1155,6 +1186,7 @@
       semanticResultIds = new Set(result.matched_ids || []);
       searchQuery = ''; // matikan mode keyword biasa, semantik yang aktif
       semanticActiveNote.classList.remove('hidden');
+      displayLimit = DEFAULT_DISPLAY_COUNT;
       applyFiltersAndRender();
     } catch (err) {
       console.error(err);
@@ -1169,6 +1201,7 @@
     searchQuery = e.target.value;
     semanticResultIds = null; // ketik ulang -> batalkan mode pencarian makna, balik ke biasa
     semanticActiveNote.classList.add('hidden');
+    displayLimit = DEFAULT_DISPLAY_COUNT;
     applyFiltersAndRender();
   });
 
@@ -1186,11 +1219,13 @@
   dateFromInput.addEventListener('change', (e) => {
     dateFrom = e.target.value;
     clearDateRangeBtn.classList.toggle('hidden', !dateFrom && !dateTo);
+    displayLimit = DEFAULT_DISPLAY_COUNT;
     applyFiltersAndRender();
   });
   dateToInput.addEventListener('change', (e) => {
     dateTo = e.target.value;
     clearDateRangeBtn.classList.toggle('hidden', !dateFrom && !dateTo);
+    displayLimit = DEFAULT_DISPLAY_COUNT;
     applyFiltersAndRender();
   });
   clearDateRangeBtn.addEventListener('click', () => {
@@ -1199,6 +1234,7 @@
     dateFromInput.value = '';
     dateToInput.value = '';
     clearDateRangeBtn.classList.add('hidden');
+    displayLimit = DEFAULT_DISPLAY_COUNT;
     applyFiltersAndRender();
   });
 
