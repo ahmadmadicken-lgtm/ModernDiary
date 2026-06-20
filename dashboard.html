@@ -724,9 +724,9 @@
     if (!isUnlocked) {
       const daysLeft = Math.ceil((unlockDate - now) / (1000 * 60 * 60 * 24));
       item.innerHTML = `
-        <div class="flex items-center justify-between">
-          <span class="text-[13.5px]" style="color:var(--ink-soft)">🔒 Terkunci sampai ${unlockDate.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })}</span>
-          <button class="del-capsule-btn text-[11px] font-mono shrink-0" style="color:#A8552F">hapus</button>
+        <div class="flex items-start justify-between gap-2.5">
+          <span class="text-[13.5px] flex-1 min-w-0 leading-relaxed" style="color:var(--ink-soft)">🔒 Terkunci sampai ${unlockDate.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })}</span>
+          <button class="del-capsule-btn text-[11px] font-mono shrink-0 whitespace-nowrap" style="color:#A8552F">hapus</button>
         </div>
         <span class="text-[11px] font-mono" style="color:var(--moss)">${daysLeft} hari lagi</span>
       `;
