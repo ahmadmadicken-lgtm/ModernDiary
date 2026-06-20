@@ -259,6 +259,51 @@
       <div id="insightBars" class="space-y-2.5"></div>
     </section>
 
+    <!-- Ringkasan Naratif AI -->
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.17s">
+      <div class="flex items-center justify-between mb-1">
+        <label class="font-display text-[19px]">📝 Cerita Minggu Ini</label>
+        <button id="weeklySummaryBtn" class="text-[11px] font-mono px-2.5 py-1 rounded-full" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">buat ringkasan</button>
+      </div>
+      <p class="text-[12.5px] mb-3" style="color:var(--ink-soft)">Ringkasan naratif 7 hari terakhir, ditulis AI dari catatanmu.</p>
+      <div id="weeklySummaryResult" class="hidden rounded-[14px] p-4" style="background:var(--paper-deep)">
+        <p id="weeklySummaryText" class="text-[14px] leading-relaxed" style="color:var(--ink)"></p>
+      </div>
+    </section>
+
+    <!-- Target / Goal Tracking -->
+    <section class="rise-section rounded-[20px] p-5 sm:p-6 mb-8" style="background:var(--card-bg); border:1px solid var(--rule); box-shadow: 0 1px 2px rgba(43,38,34,0.04), 0 20px 40px -28px rgba(43,38,34,0.18); animation-delay:.175s">
+      <label class="font-display text-[19px] block mb-1">🎯 Target</label>
+      <p class="text-[12.5px] mb-4" style="color:var(--ink-soft)">Tetapkan target, progress dihitung otomatis dari catatanmu.</p>
+
+      <div class="space-y-2.5">
+        <input id="goalTitle" type="text"
+          class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
+          style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)"
+          placeholder="Contoh: Olahraga 3x minggu ini">
+        <div class="flex gap-2.5">
+          <select id="goalCategory" class="field flex-1 rounded-[12px] px-3 py-2.5 text-[13px]" style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+            <option value="">Semua kategori</option>
+          </select>
+          <input id="goalTargetCount" type="number" min="1" value="3"
+            class="field rounded-[12px] px-3 py-2.5 text-[13px] w-20"
+            style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+          <select id="goalPeriod" class="field rounded-[12px] px-2.5 py-2.5 text-[13px]" style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+            <option value="week">/minggu</option>
+            <option value="month">/bulan</option>
+          </select>
+          <button id="addGoalBtn" class="btn-primary text-white font-medium text-[14px] rounded-[12px] px-4 shrink-0">
+            <span id="addGoalLabel">+</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="goalsEmpty" class="hidden text-center py-6 text-[13px]" style="color:var(--ink-soft)">
+        Belum ada target yang ditetapkan.
+      </div>
+      <div id="goalsList" class="space-y-3 mt-4"></div>
+    </section>
+
     <!-- Entries list -->
     <section class="rise-section" style="animation-delay:.18s">
       <div class="flex items-center justify-between mb-4">
@@ -275,7 +320,10 @@
           class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
           style="background:var(--card-bg); border:1.5px solid var(--rule); color:var(--ink)"
           placeholder="🔎 Cari kata kunci di catatan...">
-        <div id="categoryFilters" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex flex-wrap gap-1.5 items-center">
+          <button id="favFilterBtn" class="tag" style="cursor:pointer">★ Favorit</button>
+          <div id="categoryFilters" class="flex flex-wrap gap-1.5"></div>
+        </div>
       </div>
 
       <div id="loadingState" class="text-center py-10 text-[13px] pulse" style="color:var(--ink-soft)">
@@ -422,6 +470,7 @@
     card.innerHTML = `
       <div class="flex items-start justify-between gap-3">
         <p class="entry-text text-[14px] leading-relaxed flex-1" style="color:var(--ink)">${escapeHtml(entry.raw_content)}</p>
+        <button class="fav-btn shrink-0 text-[16px]" style="color:${entry.is_favorite ? 'var(--terracotta)' : 'var(--rule)'}">★</button>
       </div>
       <div class="flex items-center justify-between mt-2.5">
         <span class="text-[11px] font-mono" style="color:var(--ink-soft)">${formatRelativeTime(entry.created_at)}</span>
@@ -432,6 +481,13 @@
       </div>
       ${tagsHtml}
     `;
+
+    card.querySelector('.fav-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const newVal = !entry.is_favorite;
+      await supabaseClient.from('family_diaries').update({ is_favorite: newVal }).eq('id', entry.id);
+      loadEntries();
+    });
 
     // ====== EDIT ======
     card.querySelector('.edit-btn').addEventListener('click', () => {
@@ -532,6 +588,8 @@
     applyFiltersAndRender();
     renderInsights();
     renderOnThisDay();
+    populateGoalCategoryOptions();
+    loadGoals();
   }
 
   // ====== KILAS BALIK / ON THIS DAY ======
@@ -639,6 +697,154 @@
     }).join('');
   }
 
+  // ====== RINGKASAN NARATIF AI (MINGGUAN) ======
+  const weeklySummaryBtn = document.getElementById('weeklySummaryBtn');
+  const weeklySummaryResult = document.getElementById('weeklySummaryResult');
+  const weeklySummaryText = document.getElementById('weeklySummaryText');
+
+  weeklySummaryBtn.addEventListener('click', async () => {
+    weeklySummaryBtn.disabled = true;
+    weeklySummaryBtn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/weekly-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      const result = await response.json();
+      weeklySummaryText.textContent = result.summary;
+      weeklySummaryResult.classList.remove('hidden');
+    } catch (err) {
+      console.error(err);
+      weeklySummaryText.textContent = 'Gagal membuat ringkasan. Coba lagi.';
+      weeklySummaryResult.classList.remove('hidden');
+    } finally {
+      weeklySummaryBtn.disabled = false;
+      weeklySummaryBtn.textContent = 'buat ringkasan';
+    }
+  });
+
+  // ====== TARGET / GOAL TRACKING ======
+  const goalTitle = document.getElementById('goalTitle');
+  const goalCategory = document.getElementById('goalCategory');
+  const goalTargetCount = document.getElementById('goalTargetCount');
+  const goalPeriod = document.getElementById('goalPeriod');
+  const addGoalBtn = document.getElementById('addGoalBtn');
+  const addGoalLabel = document.getElementById('addGoalLabel');
+  const goalsList = document.getElementById('goalsList');
+  const goalsEmpty = document.getElementById('goalsEmpty');
+
+  function populateGoalCategoryOptions(){
+    const categories = [...new Set(allEntries.map((e) => e.extracted_data?.category).filter(Boolean))];
+    const currentVal = goalCategory.value;
+    goalCategory.innerHTML = '<option value="">Semua kategori</option>' +
+      categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    goalCategory.value = currentVal;
+  }
+
+  function countEntriesForGoal(goal){
+    const now = new Date();
+    let cutoff;
+    if (goal.period === 'month') {
+      cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    } else {
+      cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+    return allEntries.filter((e) => {
+      const d = new Date(e.created_at);
+      if (d < cutoff) return false;
+      if (goal.category && e.extracted_data?.category !== goal.category) return false;
+      return true;
+    }).length;
+  }
+
+  async function loadGoals(){
+    const { data, error } = await supabaseClient
+      .from('family_goals')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) { console.error(error); return; }
+
+    goalsList.innerHTML = '';
+    if (!data || data.length === 0) {
+      goalsEmpty.classList.remove('hidden');
+      return;
+    }
+    goalsEmpty.classList.add('hidden');
+
+    data.forEach((goal) => {
+      const current = countEntriesForGoal(goal);
+      const pct = Math.min((current / goal.target_count) * 100, 100);
+      const isComplete = current >= goal.target_count;
+
+      const item = document.createElement('div');
+      item.className = 'rounded-[12px] px-4 py-3';
+      item.style.cssText = 'background:var(--paper-deep); border:1px solid var(--rule);';
+      item.innerHTML = `
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[13.5px] font-medium" style="color:var(--ink)">${isComplete ? '✅ ' : ''}${escapeHtml(goal.title)}</span>
+          <button class="del-goal-btn text-[11px] font-mono" style="color:#A8552F">hapus</button>
+        </div>
+        <div class="h-2 rounded-full overflow-hidden mb-1" style="background:var(--rule)">
+          <div class="h-full rounded-full" style="width:${pct}%; background:${isComplete ? 'var(--moss)' : 'var(--terracotta)'}"></div>
+        </div>
+        <span class="text-[11px] font-mono" style="color:var(--ink-soft)">${current} / ${goal.target_count} ${goal.period === 'week' ? 'minggu ini' : 'bulan ini'}${goal.category ? ' · ' + escapeHtml(goal.category) : ''}</span>
+      `;
+
+      item.querySelector('.del-goal-btn').addEventListener('click', async () => {
+        if (!confirm('Hapus target ini?')) return;
+        await supabaseClient.from('family_goals').delete().eq('id', goal.id);
+        loadGoals();
+      });
+
+      goalsList.appendChild(item);
+    });
+  }
+
+  addGoalBtn.addEventListener('click', async () => {
+    const title = goalTitle.value.trim();
+    const targetCount = parseInt(goalTargetCount.value, 10);
+    if (!title || !targetCount || targetCount < 1) {
+      goalTitle.focus();
+      return;
+    }
+
+    addGoalBtn.disabled = true;
+    addGoalLabel.innerHTML = '<span class="spinner"></span>';
+
+    const { error } = await supabaseClient.from('family_goals').insert({
+      user_id: currentUserId,
+      title,
+      category: goalCategory.value || null,
+      target_count: targetCount,
+      period: goalPeriod.value,
+    });
+
+    addGoalBtn.disabled = false;
+    addGoalLabel.textContent = '+';
+
+    if (error) {
+      alert('Gagal menyimpan target: ' + error.message);
+      return;
+    }
+
+    goalTitle.value = '';
+    goalTargetCount.value = '3';
+    loadGoals();
+  });
+
   function renderCategoryFilters(){
     const categories = [...new Set(
       allEntries.map((e) => e.extracted_data?.category).filter(Boolean)
@@ -666,8 +872,15 @@
     });
   }
 
+  let favoriteOnly = false;
+  const favFilterBtn = document.getElementById('favFilterBtn');
+
   function applyFiltersAndRender(){
     let filtered = allEntries;
+
+    if (favoriteOnly) {
+      filtered = filtered.filter((e) => e.is_favorite);
+    }
 
     if (activeCategory) {
       filtered = filtered.filter((e) => e.extracted_data?.category === activeCategory);
@@ -687,12 +900,20 @@
     }
 
     noResultsState.classList.add('hidden');
-    entryCount.textContent = (activeCategory || searchQuery.trim())
+    entryCount.textContent = (activeCategory || searchQuery.trim() || favoriteOnly)
       ? `${filtered.length} dari ${allEntries.length} catatan`
       : `${filtered.length} catatan`;
 
     filtered.forEach((entry, i) => entriesList.appendChild(renderEntryCard(entry, i)));
   }
+
+  favFilterBtn.addEventListener('click', () => {
+    favoriteOnly = !favoriteOnly;
+    favFilterBtn.style.background = favoriteOnly ? 'var(--terracotta)' : '';
+    favFilterBtn.style.color = favoriteOnly ? '#fff' : '';
+    favFilterBtn.style.borderColor = favoriteOnly ? 'var(--terracotta)' : '';
+    applyFiltersAndRender();
+  });
 
   searchInput.addEventListener('input', (e) => {
     searchQuery = e.target.value;
