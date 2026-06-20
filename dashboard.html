@@ -10,6 +10,7 @@
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -309,7 +310,10 @@
     <section class="rise-section" style="animation-delay:.18s">
       <div class="flex items-center justify-between gap-2 mb-1">
         <h2 class="font-display text-[19px]">Catatan Sebelumnya</h2>
-        <button id="exportCsvBtn" class="text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">⬇ CSV</button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="exportCsvBtn" class="text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">⬇ CSV</button>
+          <button id="exportPdfBtn" class="text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap" style="background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--rule)">📕 PDF</button>
+        </div>
       </div>
       <div class="mb-3">
         <span id="entryCount" class="text-[11px] font-mono whitespace-nowrap" style="color:var(--ink-soft)"></span>
@@ -321,6 +325,22 @@
           class="field w-full rounded-[12px] px-4 py-2.5 text-[14px]"
           style="background:var(--card-bg); border:1.5px solid var(--rule); color:var(--ink)"
           placeholder="🔎 Cari kata kunci di catatan...">
+
+        <button id="toggleDateRangeBtn" class="text-[11px] font-mono flex items-center gap-1" style="color:var(--ink-soft)">
+          📅 <span>filter rentang tanggal</span>
+        </button>
+        <div id="dateRangeFields" class="hidden flex gap-2">
+          <div class="flex-1 min-w-0">
+            <label class="block text-[10.5px] mb-1" style="color:var(--ink-soft)">Dari</label>
+            <input id="dateFromInput" type="date" class="field w-full rounded-[10px] px-2.5 py-2 text-[12.5px]" style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+          </div>
+          <div class="flex-1 min-w-0">
+            <label class="block text-[10.5px] mb-1" style="color:var(--ink-soft)">Sampai</label>
+            <input id="dateToInput" type="date" class="field w-full rounded-[10px] px-2.5 py-2 text-[12.5px]" style="background:var(--paper-deep); border:1.5px solid var(--rule); color:var(--ink)">
+          </div>
+          <button id="clearDateRangeBtn" class="hidden self-end text-[11px] font-mono px-2.5 py-2 rounded-[10px] shrink-0" style="color:#A8552F; border:1px solid var(--rule)">batal</button>
+        </div>
+
         <div class="flex flex-wrap gap-1.5 items-center">
           <button id="favFilterBtn" class="tag" style="cursor:pointer">★ Favorit</button>
           <div id="categoryFilters" class="flex flex-wrap gap-1.5"></div>
@@ -874,23 +894,42 @@
   }
 
   let favoriteOnly = false;
+  let dateFrom = '';
+  let dateTo = '';
   const favFilterBtn = document.getElementById('favFilterBtn');
 
-  function applyFiltersAndRender(){
+  // ====== FUNGSI FILTER TERPUSAT (dipakai render, CSV, dan PDF) ======
+  function getFilteredEntries(){
     let filtered = allEntries;
 
     if (favoriteOnly) {
       filtered = filtered.filter((e) => e.is_favorite);
     }
-
     if (activeCategory) {
       filtered = filtered.filter((e) => e.extracted_data?.category === activeCategory);
     }
-
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       filtered = filtered.filter((e) => e.raw_content.toLowerCase().includes(q));
     }
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom + 'T00:00:00Z');
+      filtered = filtered.filter((e) => new Date(e.created_at) >= fromDate);
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo + 'T23:59:59Z');
+      filtered = filtered.filter((e) => new Date(e.created_at) <= toDate);
+    }
+
+    return filtered;
+  }
+
+  function isAnyFilterActive(){
+    return !!(activeCategory || searchQuery.trim() || favoriteOnly || dateFrom || dateTo);
+  }
+
+  function applyFiltersAndRender(){
+    const filtered = getFilteredEntries();
 
     entriesList.innerHTML = '';
 
@@ -901,7 +940,7 @@
     }
 
     noResultsState.classList.add('hidden');
-    entryCount.textContent = (activeCategory || searchQuery.trim() || favoriteOnly)
+    entryCount.textContent = isAnyFilterActive()
       ? `${filtered.length} dari ${allEntries.length} catatan`
       : `${filtered.length} catatan`;
 
@@ -918,6 +957,36 @@
 
   searchInput.addEventListener('input', (e) => {
     searchQuery = e.target.value;
+    applyFiltersAndRender();
+  });
+
+  // ====== FILTER RENTANG TANGGAL ======
+  const dateFromInput = document.getElementById('dateFromInput');
+  const dateToInput = document.getElementById('dateToInput');
+  const clearDateRangeBtn = document.getElementById('clearDateRangeBtn');
+  const toggleDateRangeBtn = document.getElementById('toggleDateRangeBtn');
+  const dateRangeFields = document.getElementById('dateRangeFields');
+
+  toggleDateRangeBtn.addEventListener('click', () => {
+    dateRangeFields.classList.toggle('hidden');
+  });
+
+  dateFromInput.addEventListener('change', (e) => {
+    dateFrom = e.target.value;
+    clearDateRangeBtn.classList.toggle('hidden', !dateFrom && !dateTo);
+    applyFiltersAndRender();
+  });
+  dateToInput.addEventListener('change', (e) => {
+    dateTo = e.target.value;
+    clearDateRangeBtn.classList.toggle('hidden', !dateFrom && !dateTo);
+    applyFiltersAndRender();
+  });
+  clearDateRangeBtn.addEventListener('click', () => {
+    dateFrom = '';
+    dateTo = '';
+    dateFromInput.value = '';
+    dateToInput.value = '';
+    clearDateRangeBtn.classList.add('hidden');
     applyFiltersAndRender();
   });
 
@@ -939,15 +1008,7 @@
       return;
     }
 
-    // Hormati filter/pencarian yang sedang aktif — yang diunduh adalah yang sedang terlihat
-    let dataToExport = allEntries;
-    if (activeCategory) {
-      dataToExport = dataToExport.filter((e) => e.extracted_data?.category === activeCategory);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      dataToExport = dataToExport.filter((e) => e.raw_content.toLowerCase().includes(q));
-    }
+    const dataToExport = getFilteredEntries();
 
     if (dataToExport.length === 0) {
       alert('Tidak ada catatan yang cocok dengan filter saat ini untuk diunduh.');
@@ -980,6 +1041,116 @@
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  });
+
+  // ====== EXPORT PDF BUKU DIARY ======
+  const exportPdfBtn = document.getElementById('exportPdfBtn');
+
+  exportPdfBtn.addEventListener('click', () => {
+    if (!allEntries || allEntries.length === 0) {
+      alert('Belum ada catatan untuk diunduh.');
+      return;
+    }
+
+    const dataToExport = getFilteredEntries();
+    if (dataToExport.length === 0) {
+      alert('Tidak ada catatan yang cocok dengan filter saat ini untuk diunduh.');
+      return;
+    }
+
+    if (!window.jspdf) {
+      alert('Gagal memuat library PDF. Coba refresh halaman dan ulangi.');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a5' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    function checkPageBreak(neededSpace){
+      if (y + neededSpace > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    }
+
+    // ====== HALAMAN JUDUL ======
+    doc.setFont('times', 'bold');
+    doc.setFontSize(26);
+    doc.setTextColor(43, 38, 34);
+    doc.text('ModernDiary', pageWidth / 2, pageHeight / 2 - 15, { align: 'center' });
+
+    doc.setFont('times', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(107, 98, 88);
+    const rangeLabel = (dateFrom || dateTo)
+      ? `${dateFrom || '...'} s/d ${dateTo || '...'}`
+      : `Dicetak ${new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' })}`;
+    doc.text(rangeLabel, pageWidth / 2, pageHeight / 2 - 5, { align: 'center' });
+    doc.text(`${dataToExport.length} catatan`, pageWidth / 2, pageHeight / 2 + 2, { align: 'center' });
+
+    doc.addPage();
+    y = margin;
+
+    // Urutkan dari yang terlama ke terbaru supaya terasa seperti membaca buku/cerita
+    const sorted = [...dataToExport].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    let lastDateLabel = '';
+    sorted.forEach((entry) => {
+      const d = new Date(entry.created_at);
+      const dateLabel = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+      // Header tanggal baru kalau beda dari entri sebelumnya
+      if (dateLabel !== lastDateLabel) {
+        checkPageBreak(14);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(194, 105, 61);
+        doc.text(dateLabel, margin, y);
+        y += 3;
+        doc.setDrawColor(232, 223, 211);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 7;
+        lastDateLabel = dateLabel;
+      }
+
+      const timeLabel = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      checkPageBreak(8);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(107, 98, 88);
+      doc.text(timeLabel, margin, y);
+      y += 5;
+
+      doc.setFont('times', 'normal');
+      doc.setFontSize(11.5);
+      doc.setTextColor(43, 38, 34);
+      const lines = doc.splitTextToSize(entry.raw_content, contentWidth);
+      checkPageBreak(lines.length * 5.5);
+      doc.text(lines, margin, y);
+      y += lines.length * 5.5 + 2;
+
+      // Tag ringkas (kategori/biaya) kalau ada
+      const ed = entry.extracted_data;
+      if (ed && (ed.category || ed.cost)) {
+        const tagParts = [ed.category, ed.location, ed.cost ? `Rp ${Number(ed.cost).toLocaleString('id-ID')}` : null].filter(Boolean);
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(140, 122, 94);
+        checkPageBreak(5);
+        doc.text(tagParts.join('  ·  '), margin, y);
+        y += 5;
+      }
+
+      y += 6; // jarak antar catatan
+    });
+
+    const today = new Date().toISOString().split('T')[0];
+    doc.save(`moderndiary-buku-${today}.pdf`);
   });
 
   // ====== SAVE NEW ENTRY(IES) + TRIGGER AI PROCESSING ======
