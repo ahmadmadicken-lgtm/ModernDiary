@@ -45,7 +45,13 @@
 
   *{ -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
   html, body{ margin:0; padding:0; }
-  body{ font-family:'Inter', sans-serif; background: var(--paper); color: var(--ink); }
+  body{
+    font-family:'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .font-display{ font-family:'Fraunces', serif; font-optical-sizing:auto; }
   .font-mono{ font-family:'JetBrains Mono', monospace; }
 
